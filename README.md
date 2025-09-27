@@ -1,6 +1,5 @@
 # i_smart.imaz_BMS
 Busiuness Management System
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
