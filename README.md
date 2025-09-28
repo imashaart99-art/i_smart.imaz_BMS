@@ -1,5 +1,4 @@
-# i_smart.imaz_BMS
-Busiuness Management System
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1859,17 +1858,697 @@ Busiuness Management System
             localStorage.setItem(key, JSON.stringify(data));
         }
         
-        // AI Chat Module Functions
+        // Generate unique ID
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
         
-        // Chat functionality
+        // Task Manager Functions
+        function loadTasks() {
+            const tasks = getStorageData(STORAGE_KEYS.TASKS);
+            const pendingTasks = tasks.filter(task => task.status === 'pending');
+            const completedTasks = tasks.filter(task => task.status === 'completed');
+            
+            document.getElementById('pending-count').textContent = pendingTasks.length;
+            document.getElementById('completed-count').textContent = completedTasks.length;
+            
+            renderTasks('pending-tasks', pendingTasks);
+            renderTasks('completed-tasks', completedTasks);
+        }
+        
+        function renderTasks(containerId, tasks) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            
+            if (tasks.length === 0) {
+                container.innerHTML = '<p>No tasks found</p>';
+                return;
+            }
+            
+            tasks.forEach(task => {
+                const taskElement = document.createElement('div');
+                taskElement.className = 'task-item';
+                
+                // Add status class based on due date
+                const dueDate = new Date(task.dueDate);
+                const today = new Date();
+                const diffTime = dueDate - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays < 0) {
+                    taskElement.classList.add('task-overdue');
+                } else if (diffDays <= 3) {
+                    taskElement.classList.add('task-due-soon');
+                } else {
+                    taskElement.classList.add('task-normal');
+                }
+                
+                taskElement.innerHTML = `
+                    <div class="task-status status-${task.status}">${task.status}</div>
+                    <h4>${task.title}</h4>
+                    <div class="task-meta">
+                        <div>
+                            <label>Category</label>
+                            <span>${task.category}</span>
+                        </div>
+                        <div>
+                            <label>Type</label>
+                            <span>${task.type}</span>
+                        </div>
+                        <div>
+                            <label>Due Date</label>
+                            <span>${new Date(task.dueDate).toLocaleDateString()}</span>
+                        </div>
+                        <div>
+                            <label>Cost</label>
+                            <span>Rs. ${task.cost}</span>
+                        </div>
+                    </div>
+                    <div class="task-actions">
+                        ${task.status === 'pending' ? 
+                            `<button class="btn-success" onclick="updateTaskStatus('${task.id}', 'completed')">Complete</button>` : 
+                            `<button class="btn-secondary" onclick="updateTaskStatus('${task.id}', 'pending')">Reopen</button>`
+                        }
+                        <button class="btn-danger" onclick="deleteTask('${task.id}')">Delete</button>
+                    </div>
+                `;
+                
+                container.appendChild(taskElement);
+            });
+        }
+        
+        // Task form submission
+        document.getElementById('task-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const taskData = {
+                id: generateId(),
+                title: document.getElementById('task-name').value,
+                category: document.getElementById('task-category').value,
+                type: document.getElementById('task-type').value,
+                cost: parseFloat(document.getElementById('task-cost').value) || 0,
+                dueDate: document.getElementById('task-due-date').value,
+                status: 'pending',
+                comments: [{
+                    text: document.getElementById('task-comment').value,
+                    createdAt: new Date().toISOString()
+                }],
+                createdAt: new Date().toISOString()
+            };
+            
+            const tasks = getStorageData(STORAGE_KEYS.TASKS);
+            tasks.push(taskData);
+            setStorageData(STORAGE_KEYS.TASKS, tasks);
+            
+            showNotification('Task added successfully!');
+            this.reset();
+            loadTasks();
+        });
+        
+        // Update task status
+        function updateTaskStatus(taskId, status) {
+            const tasks = getStorageData(STORAGE_KEYS.TASKS);
+            const taskIndex = tasks.findIndex(task => task.id === taskId);
+            
+            if (taskIndex !== -1) {
+                tasks[taskIndex].status = status;
+                setStorageData(STORAGE_KEYS.TASKS, tasks);
+                loadTasks();
+                showNotification(`Task marked as ${status}!`);
+            }
+        }
+        
+        // Delete task
+        function deleteTask(taskId) {
+            if (!confirm('Are you sure you want to delete this task?')) return;
+            
+            const tasks = getStorageData(STORAGE_KEYS.TASKS);
+            const filteredTasks = tasks.filter(task => task.id !== taskId);
+            setStorageData(STORAGE_KEYS.TASKS, filteredTasks);
+            loadTasks();
+            showNotification('Task deleted successfully!');
+        }
+        
+        // Payroll Functions
+        function loadEmployees() {
+            const employees = getStorageData(STORAGE_KEYS.EMPLOYEES);
+            const tbody = document.getElementById('employees-table-body');
+            tbody.innerHTML = '';
+            
+            employees.forEach(employee => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${employee.id}</td>
+                    <td>${employee.name}</td>
+                    <td>${employee.contact || 'N/A'}</td>
+                    <td>Rs. ${employee.salary}</td>
+                    <td>${new Date(employee.joinDate).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn-secondary" onclick="editEmployee('${employee.id}')">Edit</button>
+                        <button class="btn-danger" onclick="deleteEmployee('${employee.id}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function loadEmployeesForPayslip() {
+            const employees = getStorageData(STORAGE_KEYS.EMPLOYEES);
+            const select = document.getElementById('employee-select');
+            select.innerHTML = '<option value="">Select Employee</option>';
+            
+            employees.forEach(employee => {
+                const option = document.createElement('option');
+                option.value = employee.id;
+                option.textContent = employee.name;
+                select.appendChild(option);
+            });
+        }
+        
+        // Add employee button
+        document.getElementById('add-employee-btn').addEventListener('click', () => {
+            document.getElementById('employee-modal').style.display = 'block';
+        });
+        
+        // Employee form submission
+        document.getElementById('employee-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const employeeData = {
+                id: generateId(),
+                name: document.getElementById('full-name').value,
+                address: document.getElementById('address').value,
+                contact: document.getElementById('contact').value,
+                joinDate: document.getElementById('join-date').value,
+                salary: parseFloat(document.getElementById('salary').value) || 0,
+                overtimeRate: parseFloat(document.getElementById('overtime-rate').value) || 0,
+                deductions: parseFloat(document.getElementById('deductions').value) || 0,
+                createdAt: new Date().toISOString()
+            };
+            
+            const employees = getStorageData(STORAGE_KEYS.EMPLOYEES);
+            employees.push(employeeData);
+            setStorageData(STORAGE_KEYS.EMPLOYEES, employees);
+            
+            showNotification('Employee added successfully!');
+            this.reset();
+            document.getElementById('employee-modal').style.display = 'none';
+            loadEmployees();
+            loadEmployeesForPayslip();
+        });
+        
+        // Payslip form submission
+        document.getElementById('payslip-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const employeeId = document.getElementById('employee-select').value;
+            const month = document.getElementById('month').value;
+            const year = parseInt(document.getElementById('year').value);
+            const overtimeHours = parseFloat(document.getElementById('overtime-hours').value) || 0;
+            const deductions = parseFloat(document.getElementById('deductions').value) || 0;
+            
+            const employees = getStorageData(STORAGE_KEYS.EMPLOYEES);
+            const employee = employees.find(emp => emp.id === employeeId);
+            
+            if (!employee) {
+                showNotification('Employee not found!', true);
+                return;
+            }
+            
+            // Calculate payslip
+            const basicSalary = employee.salary;
+            const overtimePay = overtimeHours * employee.overtimeRate;
+            const grossSalary = basicSalary + overtimePay;
+            const netSalary = grossSalary - deductions;
+            
+            const payslipData = {
+                id: generateId(),
+                employeeId,
+                employeeName: employee.name,
+                month,
+                year,
+                basicSalary,
+                overtimeHours,
+                overtimePay,
+                deductions,
+                grossSalary,
+                netSalary,
+                createdAt: new Date().toISOString()
+            };
+            
+            const salaryRecords = getStorageData(STORAGE_KEYS.SALARY_RECORDS);
+            salaryRecords.push(payslipData);
+            setStorageData(STORAGE_KEYS.SALARY_RECORDS, salaryRecords);
+            
+            showNotification('Payslip generated successfully!');
+            this.reset();
+            
+            // Display payslip
+            displayPayslip(payslipData);
+        });
+        
+        function displayPayslip(payslip) {
+            const container = document.getElementById('payslip-form').parentElement;
+            
+            const payslipHtml = `
+                <div class="invoice-preview">
+                    <div class="invoice-header">
+                        <div class="invoice-title">Payslip</div>
+                        <div>Month: ${payslip.month} ${payslip.year}</div>
+                    </div>
+                    
+                    <div class="invoice-meta">
+                        <div>
+                            <strong>Employee:</strong> ${payslip.employeeName}
+                        </div>
+                    </div>
+                    
+                    <div class="invoice-details">
+                        <div class="invoice-row">
+                            <span>Basic Salary:</span>
+                            <span>Rs. ${payslip.basicSalary.toFixed(2)}</span>
+                        </div>
+                        <div class="invoice-row">
+                            <span>Overtime Pay:</span>
+                            <span>Rs. ${payslip.overtimePay.toFixed(2)}</span>
+                        </div>
+                        <div class="invoice-row">
+                            <span>Deductions:</span>
+                            <span>Rs. ${payslip.deductions.toFixed(2)}</span>
+                        </div>
+                        <div class="invoice-row total">
+                            <span>Net Salary:</span>
+                            <span>Rs. ${payslip.netSalary.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            container.insertAdjacentHTML('beforeend', payslipHtml);
+        }
+        
+        // Financial Functions
+        function loadIncomeRecords() {
+            const incomeRecords = getStorageData(STORAGE_KEYS.INCOME_RECORDS);
+            const tbody = document.getElementById('income-table-body');
+            tbody.innerHTML = '';
+            
+            incomeRecords.forEach(record => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${record.source}</td>
+                    <td>Rs. ${record.amount.toFixed(2)}</td>
+                    <td>${new Date(record.date).toLocaleDateString()}</td>
+                    <td>${record.description || 'N/A'}</td>
+                    <td>
+                        <button class="btn-secondary" onclick="editIncome('${record.id}')">Edit</button>
+                        <button class="btn-danger" onclick="deleteIncome('${record.id}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function loadExpenseRecords() {
+            const expenseRecords = getStorageData(STORAGE_KEYS.EXPENSE_RECORDS);
+            const tbody = document.getElementById('expense-table-body');
+            tbody.innerHTML = '';
+            
+            expenseRecords.forEach(record => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${record.category}</td>
+                    <td>Rs. ${record.amount.toFixed(2)}</td>
+                    <td>${new Date(record.date).toLocaleDateString()}</td>
+                    <td>${record.description || 'N/A'}</td>
+                    <td>
+                        <button class="btn-secondary" onclick="editExpense('${record.id}')">Edit</button>
+                        <button class="btn-danger" onclick="deleteExpense('${record.id}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function loadFinancialSummary() {
+            const period = document.getElementById('summary-period').value;
+            const incomeRecords = getStorageData(STORAGE_KEYS.INCOME_RECORDS);
+            const expenseRecords = getStorageData(STORAGE_KEYS.EXPENSE_RECORDS);
+            
+            // Filter records based on period
+            const now = new Date();
+            let startDate, endDate;
+            
+            switch (period) {
+                case 'today':
+                    startDate = new Date(now.setHours(0, 0, 0, 0));
+                    endDate = new Date(now.setHours(23, 59, 59, 999));
+                    break;
+                case 'month':
+                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                    break;
+                case 'year':
+                    startDate = new Date(now.getFullYear(), 0, 1);
+                    endDate = new Date(now.getFullYear(), 11, 31);
+                    break;
+                default:
+                    startDate = new Date(now.setHours(0, 0, 0, 0));
+                    endDate = new Date(now.setHours(23, 59, 59, 999));
+            }
+            
+            const filteredIncome = incomeRecords.filter(record => {
+                const recordDate = new Date(record.date);
+                return recordDate >= startDate && recordDate <= endDate;
+            });
+            
+            const filteredExpenses = expenseRecords.filter(record => {
+                const recordDate = new Date(record.date);
+                return recordDate >= startDate && recordDate <= endDate;
+            });
+            
+            const totalIncome = filteredIncome.reduce((sum, record) => sum + record.amount, 0);
+            const totalExpenses = filteredExpenses.reduce((sum, record) => sum + record.amount, 0);
+            const profitLoss = totalIncome - totalExpenses;
+            
+            document.getElementById('total-income').textContent = `Rs. ${totalIncome.toFixed(2)}`;
+            document.getElementById('total-expenses').textContent = `Rs. ${totalExpenses.toFixed(2)}`;
+            document.getElementById('profit-loss').textContent = `Rs. ${profitLoss.toFixed(2)}`;
+            
+            // Create chart
+            const ctx = document.getElementById('financial-chart').getContext('2d');
+            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Income', 'Expenses'],
+                    datasets: [{
+                        label: 'Amount (Rs.)',
+                        data: [totalIncome, totalExpenses],
+                        backgroundColor: [
+                            'rgba(16, 185, 129, 0.6)',
+                            'rgba(239, 68, 68, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(16, 185, 129, 1)',
+                            'rgba(239, 68, 68, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Add income button
+        document.getElementById('add-income-btn').addEventListener('click', () => {
+            document.getElementById('income-modal').style.display = 'block';
+        });
+        
+        // Income form submission
+        document.getElementById('income-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const incomeData = {
+                id: generateId(),
+                source: document.getElementById('income-source').value,
+                amount: parseFloat(document.getElementById('income-amount').value),
+                date: document.getElementById('income-date').value,
+                description: document.getElementById('income-description').value,
+                createdAt: new Date().toISOString()
+            };
+            
+            const incomeRecords = getStorageData(STORAGE_KEYS.INCOME_RECORDS);
+            incomeRecords.push(incomeData);
+            setStorageData(STORAGE_KEYS.INCOME_RECORDS, incomeRecords);
+            
+            showNotification('Income record added successfully!');
+            this.reset();
+            document.getElementById('income-modal').style.display = 'none';
+            loadIncomeRecords();
+            loadFinancialSummary();
+        });
+        
+        // Add expense button
+        document.getElementById('add-expense-btn').addEventListener('click', () => {
+            document.getElementById('expense-modal').style.display = 'block';
+        });
+        
+        // Expense form submission
+        document.getElementById('expense-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const expenseData = {
+                id: generateId(),
+                category: document.getElementById('expense-category').value,
+                amount: parseFloat(document.getElementById('expense-amount').value),
+                date: document.getElementById('expense-date').value,
+                description: document.getElementById('expense-description').value,
+                createdAt: new Date().toISOString()
+            };
+            
+            const expenseRecords = getStorageData(STORAGE_KEYS.EXPENSE_RECORDS);
+            expenseRecords.push(expenseData);
+            setStorageData(STORAGE_KEYS.EXPENSE_RECORDS, expenseRecords);
+            
+            showNotification('Expense record added successfully!');
+            this.reset();
+            document.getElementById('expense-modal').style.display = 'none';
+            loadExpenseRecords();
+            loadFinancialSummary();
+        });
+        
+        // Refresh summary button
+        document.getElementById('refresh-summary-btn').addEventListener('click', loadFinancialSummary);
+        
+        // POS Functions
+        function loadProducts() {
+            const products = getStorageData(STORAGE_KEYS.PRODUCTS);
+            const tbody = document.getElementById('products-table-body');
+            tbody.innerHTML = '';
+            
+            products.forEach(product => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${product.id}</td>
+                    <td>${product.name}</td>
+                    <td>${product.brand || 'N/A'}</td>
+                    <td>${product.category}</td>
+                    <td>Rs. ${product.price.toFixed(2)}</td>
+                    <td>${product.stock}</td>
+                    <td>${product.expiryDate ? new Date(product.expiryDate).toLocaleDateString() : 'N/A'}</td>
+                    <td>
+                        <button class="btn-secondary" onclick="editProduct('${product.id}')">Edit</button>
+                        <button class="btn-danger" onclick="deleteProduct('${product.id}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        // Add product button
+        document.getElementById('add-product-btn').addEventListener('click', () => {
+            document.getElementById('product-modal').style.display = 'block';
+        });
+        
+        // Product form submission
+        document.getElementById('product-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const productData = {
+                id: generateId(),
+                name: document.getElementById('product-name').value,
+                brand: document.getElementById('product-brand').value,
+                category: document.getElementById('product-category').value,
+                weightVolume: document.getElementById('weight-volume').value,
+                packetCount: parseInt(document.getElementById('packet-count').value) || 1,
+                price: parseFloat(document.getElementById('product-price').value),
+                comments: document.getElementById('product-comments').value,
+                expiryDate: document.getElementById('expiry-date').value,
+                stock: 0,
+                createdAt: new Date().toISOString()
+            };
+            
+            const products = getStorageData(STORAGE_KEYS.PRODUCTS);
+            products.push(productData);
+            setStorageData(STORAGE_KEYS.PRODUCTS, products);
+            
+            showNotification('Product added successfully!');
+            this.reset();
+            document.getElementById('product-modal').style.display = 'none';
+            loadProducts();
+        });
+        
+        // Product search functionality
+        let selectedProducts = [];
+        
+        document.getElementById('product-search').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const searchResults = document.getElementById('product-search-results');
+            
+            if (searchTerm.length < 2) {
+                searchResults.style.display = 'none';
+                return;
+            }
+            
+            const products = getStorageData(STORAGE_KEYS.PRODUCTS);
+            const filteredProducts = products.filter(product => 
+                product.name.toLowerCase().includes(searchTerm) ||
+                (product.brand && product.brand.toLowerCase().includes(searchTerm))
+            );
+            
+            searchResults.innerHTML = '';
+            
+            if (filteredProducts.length === 0) {
+                searchResults.innerHTML = '<div class="search-result-item">No products found</div>';
+            } else {
+                filteredProducts.forEach(product => {
+                    const item = document.createElement('div');
+                    item.className = 'search-result-item';
+                    item.innerHTML = `
+                        <strong>${product.name}</strong>
+                        <div>Rs. ${product.price.toFixed(2)} | Stock: ${product.stock}</div>
+                    `;
+                    item.addEventListener('click', () => addProductToSale(product));
+                    searchResults.appendChild(item);
+                });
+            }
+            
+            searchResults.style.display = 'block';
+        });
+        
+        function addProductToSale(product) {
+            // Check if product already in selected products
+            const existingProduct = selectedProducts.find(p => p.id === product.id);
+            
+            if (existingProduct) {
+                existingProduct.quantity += 1;
+            } else {
+                selectedProducts.push({
+                    id: product.id,
+                    name: product.name,
+                    price: product.price,
+                    quantity: 1
+                });
+            }
+            
+            renderSelectedProducts();
+            document.getElementById('product-search').value = '';
+            document.getElementById('product-search-results').style.display = 'none';
+        }
+        
+        function renderSelectedProducts() {
+            const container = document.getElementById('selected-products-list');
+            container.innerHTML = '';
+            
+            if (selectedProducts.length === 0) {
+                container.innerHTML = '<p>No products selected</p>';
+                updateSaleSummary();
+                return;
+            }
+            
+            selectedProducts.forEach((product, index) => {
+                const productRow = document.createElement('div');
+                productRow.className = 'product-row';
+                productRow.innerHTML = `
+                    <div>${product.name}</div>
+                    <div>Rs. ${product.price.toFixed(2)}</div>
+                    <div>
+                        <input type="number" value="${product.quantity}" min="1" onchange="updateProductQuantity(${index}, this.value)">
+                    </div>
+                    <div>Rs. ${(product.price * product.quantity).toFixed(2)}</div>
+                    <div>
+                        <button class="btn-danger" onclick="removeProductFromSale(${index})">Remove</button>
+                    </div>
+                `;
+                container.appendChild(productRow);
+            });
+            
+            updateSaleSummary();
+        }
+        
+        function updateProductQuantity(index, quantity) {
+            selectedProducts[index].quantity = parseInt(quantity);
+            renderSelectedProducts();
+        }
+        
+        function removeProductFromSale(index) {
+            selectedProducts.splice(index, 1);
+            renderSelectedProducts();
+        }
+        
+        function updateSaleSummary() {
+            const subtotal = selectedProducts.reduce((sum, product) => sum + (product.price * product.quantity), 0);
+            const discount = parseFloat(document.getElementById('discount').value) || 0;
+            const total = subtotal - discount;
+            
+            document.getElementById('subtotal').textContent = `Rs. ${subtotal.toFixed(2)}`;
+            document.getElementById('discount-amount').textContent = `Rs. ${discount.toFixed(2)}`;
+            document.getElementById('total-amount').textContent = `Rs. ${total.toFixed(2)}`;
+        }
+        
+        document.getElementById('discount').addEventListener('input', updateSaleSummary);
+        
+        // Sale form submission
+        document.getElementById('sale-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            if (selectedProducts.length === 0) {
+                showNotification('Please add at least one product', true);
+                return;
+            }
+            
+            const saleData = {
+                id: generateId(),
+                items: selectedProducts.map(product => ({
+                    productId: product.id,
+                    name: product.name,
+                    price: product.price,
+                    quantity: product.quantity,
+                    total: product.price * product.quantity
+                })),
+                subtotal: selectedProducts.reduce((sum, product) => sum + (product.price * product.quantity), 0),
+                discount: parseFloat(document.getElementById('discount').value) || 0,
+                total: selectedProducts.reduce((sum, product) => sum + (product.price * product.quantity), 0) - (parseFloat(document.getElementById('discount').value) || 0),
+                paymentMethod: document.getElementById('payment-method').value,
+                createdAt: new Date().toISOString()
+            };
+            
+            const sales = getStorageData(STORAGE_KEYS.SALES);
+            sales.push(saleData);
+            setStorageData(STORAGE_KEYS.SALES, sales);
+            
+            // Update product stock
+            const products = getStorageData(STORAGE_KEYS.PRODUCTS);
+            selectedProducts.forEach(selectedProduct => {
+                const productIndex = products.findIndex(p => p.id === selectedProduct.id);
+                if (productIndex !== -1) {
+                    products[productIndex].stock -= selectedProduct.quantity;
+                }
+            });
+            setStorageData(STORAGE_KEYS.PRODUCTS, products);
+            
+            showNotification('Sale completed successfully!');
+            this.reset();
+            selectedProducts = [];
+            renderSelectedProducts();
+            loadProducts();
+        });
+        
+        // AI Chat Functions
         const chatMessages = document.getElementById('chat-messages');
         const chatInput = document.getElementById('chat-input');
         const sendChatBtn = document.getElementById('send-chat-btn');
         
-        // Send message on button click
         sendChatBtn.addEventListener('click', sendMessage);
-        
-        // Send message on Enter key
         chatInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 sendMessage();
@@ -1880,16 +2559,11 @@ Busiuness Management System
             const message = chatInput.value.trim();
             if (!message) return;
             
-            // Add user message to chat
             addMessageToChat(message, 'user');
-            
-            // Clear input
             chatInput.value = '';
             
-            // Show typing indicator
             showTypingIndicator();
             
-            // Process the message after a short delay
             setTimeout(() => {
                 processUserQuery(message);
             }, 1000);
@@ -1906,7 +2580,6 @@ Busiuness Management System
             messageDiv.appendChild(messageContent);
             chatMessages.appendChild(messageDiv);
             
-            // Scroll to bottom
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
@@ -1926,7 +2599,6 @@ Busiuness Management System
             typingDiv.appendChild(typingContent);
             chatMessages.appendChild(typingDiv);
             
-            // Scroll to bottom
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
@@ -1938,32 +2610,22 @@ Busiuness Management System
         }
         
         function processUserQuery(query) {
-            // Remove typing indicator
             removeTypingIndicator();
             
-            // Convert query to lowercase for easier matching
             const lowerQuery = query.toLowerCase();
+            let response = '';
             
-            // Initialize response object
-            let response = {
-                type: 'text',
-                content: '',
-                data: null,
-                title: '',
-                chartType: null
-            };
-            
-            // Pattern matching for different types of queries
+            // Process different types of queries
             if (lowerQuery.includes('today') && lowerQuery.includes('sales')) {
                 response = getTodaySalesSummary();
             } else if (lowerQuery.includes('month') && lowerQuery.includes('sales') && lowerQuery.includes('chart')) {
-                response = getMonthlySalesChart();
+                response = 'I can generate a monthly sales chart for you. Please go to the POS module and select the Monthly Sales report option.';
             } else if (lowerQuery.includes('month') && lowerQuery.includes('payroll')) {
                 response = getMonthlyPayrollCost();
             } else if (lowerQuery.includes('pending') && lowerQuery.includes('task') && lowerQuery.includes('category')) {
                 response = getPendingTasksByCategory();
             } else if (lowerQuery.includes('sales') && lowerQuery.includes('expenses') && lowerQuery.includes('chart')) {
-                response = getSalesVsExpensesChart();
+                response = 'I can generate a sales vs expenses chart for you. Please go to the Financial module and select the Summary tab.';
             } else if (lowerQuery.includes('income') && lowerQuery.includes('expense') && lowerQuery.includes('summary')) {
                 response = getIncomeExpenseSummary();
             } else if (lowerQuery.includes('product') && lowerQuery.includes('sales')) {
@@ -1975,272 +2637,28 @@ Busiuness Management System
             } else if (lowerQuery.includes('task') && lowerQuery.includes('count')) {
                 response = getTaskCount();
             } else {
-                response = {
-                    type: 'text',
-                    content: "I'm sorry, I didn't understand your query. You can ask me about sales, expenses, payroll, tasks, or products. For example, you can ask 'Show me today's sales summary' or 'Generate a chart of expenses by category'."
-                };
+                response = "I'm sorry, I didn't understand your query. You can ask me about sales, expenses, payroll, tasks, or products. For example, you can ask 'Show me today's sales summary' or 'Generate a chart of expenses by category'.";
             }
             
-            // Add the response to the chat
-            addResponseToChat(response);
+            addMessageToChat(response, 'ai');
         }
         
-        function addResponseToChat(response) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message ai-message';
-            
-            const messageContent = document.createElement('div');
-            messageContent.className = 'message-content';
-            
-            if (response.type === 'text') {
-                messageContent.textContent = response.content;
-            } else if (response.type === 'table') {
-                messageContent.innerHTML = `
-                    <div>${response.content}</div>
-                    <div class="chat-response-table-container">
-                        <table class="chat-response-table">
-                            <thead>
-                                <tr>
-                                    ${response.columns.map(col => `<th>${col}</th>`).join('')}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${response.data.map(row => `
-                                    <tr>
-                                        ${response.columns.map(col => `<td>${row[col]}</td>`).join('')}
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            } else if (response.type === 'chart') {
-                messageContent.innerHTML = `
-                    <div>${response.content}</div>
-                    <div class="chat-response-chart" id="chart-${Date.now()}"></div>
-                `;
-                
-                // Create chart after adding to DOM
-                setTimeout(() => {
-                    createChart(`chart-${Date.now()}`, response.chartType, response.data, response.title);
-                }, 100);
-            }
-            
-            messageDiv.appendChild(messageContent);
-            
-            // Add export buttons if applicable
-            if (response.type !== 'text') {
-                const messageActions = document.createElement('div');
-                messageActions.className = 'message-actions';
-                
-                const exportExcelBtn = document.createElement('button');
-                exportExcelBtn.className = 'btn-secondary';
-                exportExcelBtn.textContent = 'Export to Excel';
-                exportExcelBtn.addEventListener('click', () => exportResponseToExcel(response));
-                
-                const exportPdfBtn = document.createElement('button');
-                exportPdfBtn.className = 'btn-secondary';
-                exportPdfBtn.textContent = 'Export to PDF';
-                exportPdfBtn.addEventListener('click', () => exportResponseToPdf(response));
-                
-                messageActions.appendChild(exportExcelBtn);
-                messageActions.appendChild(exportPdfBtn);
-                messageDiv.appendChild(messageActions);
-            }
-            
-            chatMessages.appendChild(messageDiv);
-            
-            // Scroll to bottom
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-        
-        function createChart(canvasId, chartType, data, title) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas) return;
-            
-            const ctx = canvas.getContext('2d');
-            
-            let chart;
-            
-            if (chartType === 'bar') {
-                chart = new Chart(ctx, {
-                    type: 'bar',
-                    data: data,
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: title
-                            }
-                        }
-                    }
-                });
-            } else if (chartType === 'pie') {
-                chart = new Chart(ctx, {
-                    type: 'pie',
-                    data: data,
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: title
-                            }
-                        }
-                    }
-                });
-            } else if (chartType === 'line') {
-                chart = new Chart(ctx, {
-                    type: 'line',
-                    data: data,
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: title
-                            }
-                        }
-                    }
-                });
-            }
-        }
-        
-        function exportResponseToExcel(response) {
-            const wb = XLSX.utils.book_new();
-            
-            if (response.type === 'table') {
-                const ws = XLSX.utils.json_to_sheet(response.data);
-                XLSX.utils.book_append_sheet(wb, ws, 'Report');
-            } else if (response.type === 'chart') {
-                // For charts, we'll create a simple data table
-                const ws = XLSX.utils.json_to_sheet(response.data.datasets[0].data.map((value, index) => ({
-                    [response.data.labels[index]]: value
-                })));
-                XLSX.utils.book_append_sheet(wb, ws, 'Chart Data');
-            }
-            
-            XLSX.writeFile(wb, `report_${Date.now().toString().slice(-6)}.xlsx`);
-            showNotification('Report exported to Excel successfully');
-        }
-        
-        function exportResponseToPdf(response) {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            
-            // Add title
-            doc.setFontSize(18);
-            doc.text(response.title || 'Business Report', 105, 20, { align: 'center' });
-            
-            // Add generation date
-            doc.setFontSize(12);
-            doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 30, { align: 'center' });
-            
-            // Add content
-            let yPosition = 50;
-            
-            if (response.type === 'text') {
-                doc.text(response.content, 20, yPosition);
-            } else if (response.type === 'table') {
-                // Add table
-                doc.text('Data Table:', 20, yPosition);
-                yPosition += 10;
-                
-                // Add headers
-                response.columns.forEach((col, index) => {
-                    doc.text(col, 20 + (index * 80), yPosition);
-                });
-                yPosition += 10;
-                
-                // Add rows
-                response.data.forEach(row => {
-                    response.columns.forEach((col, index) => {
-                        doc.text(row[col].toString(), 20 + (index * 80), yPosition);
-                    });
-                    yPosition += 10;
-                });
-            } else if (response.type === 'chart') {
-                doc.text('Chart Data:', 20, yPosition);
-                yPosition += 10;
-                
-                // Add labels and values
-                response.data.labels.forEach((label, index) => {
-                    doc.text(`${label}: ${response.data.datasets[0].data[index]}`, 20, yPosition);
-                    yPosition += 10;
-                });
-            }
-            
-            doc.save(`report_${Date.now().toString().slice(-6)}.pdf`);
-            showNotification('Report exported to PDF successfully');
-        }
-        
-        // Query processing functions
         function getTodaySalesSummary() {
             const sales = getStorageData(STORAGE_KEYS.SALES);
             const today = new Date().toDateString();
             
             const todaySales = sales.filter(sale => {
-                const saleDate = new Date(sale.saleDate).toDateString();
+                const saleDate = new Date(sale.createdAt).toDateString();
                 return saleDate === today;
             });
             
             const totalSales = todaySales.reduce((sum, sale) => sum + sale.total, 0);
             const totalItems = todaySales.reduce((sum, sale) => sum + sale.items.length, 0);
             
-            return {
-                type: 'text',
-                content: `Today's Sales Summary:\n\nTotal Sales: Rs. ${totalSales.toFixed(2)}\nTotal Items Sold: ${totalItems}\nNumber of Transactions: ${todaySales.length}`
-            };
-        }
-        
-        function getMonthlySalesChart() {
-            const sales = getStorageData(STORAGE_KEYS.SALES);
-            const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-            const currentYear = new Date().getFullYear();
-            
-            const monthlySales = sales.filter(sale => {
-                const saleDate = new Date(sale.saleDate);
-                const saleMonth = saleDate.toLocaleString('default', { month: 'long' });
-                return saleMonth === currentMonth && saleDate.getFullYear() === currentYear;
-            });
-            
-            // Group sales by day
-            const salesByDay = {};
-            monthlySales.forEach(sale => {
-                const day = new Date(sale.saleDate).getDate();
-                if (!salesByDay[day]) {
-                    salesByDay[day] = 0;
-                }
-                salesByDay[day] += sale.total;
-            });
-            
-            const labels = Object.keys(salesByDay).sort((a, b) => a - b);
-            const data = labels.map(day => salesByDay[day]);
-            
-            return {
-                type: 'chart',
-                chartType: 'bar',
-                title: `${currentMonth} ${currentYear} Daily Sales`,
-                content: `Here's a chart showing daily sales for ${currentMonth} ${currentYear}:`,
-                data: {
-                    labels: labels.map(day => `${day} ${currentMonth.slice(0, 3)}`),
-                    datasets: [{
-                        label: 'Sales (Rs.)',
-                        data: data,
-                        backgroundColor: 'rgba(37, 99, 235, 0.6)',
-                        borderColor: 'rgba(37, 99, 235, 1)',
-                        borderWidth: 1
-                    }]
-                }
-            };
+            return `Today's Sales Summary:\n\nTotal Sales: Rs. ${totalSales.toFixed(2)}\nTotal Items Sold: ${totalItems}\nNumber of Transactions: ${todaySales.length}`;
         }
         
         function getMonthlyPayrollCost() {
-            const employees = getStorageData(STORAGE_KEYS.EMPLOYEES);
             const salaryRecords = getStorageData(STORAGE_KEYS.SALARY_RECORDS);
             const currentMonth = new Date().toLocaleString('default', { month: 'long' });
             const currentYear = new Date().getFullYear();
@@ -2251,10 +2669,7 @@ Busiuness Management System
             
             const totalPayroll = monthlyRecords.reduce((sum, record) => sum + record.netSalary, 0);
             
-            return {
-                type: 'text',
-                content: `Monthly Payroll Cost for ${currentMonth} ${currentYear}:\n\nTotal Payroll: Rs. ${totalPayroll.toFixed(2)}\nNumber of Employees: ${monthlyRecords.length}`
-            };
+            return `Monthly Payroll Cost for ${currentMonth} ${currentYear}:\n\nTotal Payroll: Rs. ${totalPayroll.toFixed(2)}\nNumber of Employees: ${monthlyRecords.length}`;
         }
         
         function getPendingTasksByCategory() {
@@ -2270,60 +2685,12 @@ Busiuness Management System
                 tasksByCategory[task.category] += 1;
             });
             
-            return {
-                type: 'table',
-                content: 'Pending Tasks by Category:',
-                columns: ['Category', 'Count'],
-                data: Object.keys(tasksByCategory).map(category => ({
-                    'Category': category,
-                    'Count': tasksByCategory[category]
-                }))
-            };
-        }
-        
-        function getSalesVsExpensesChart() {
-            const incomeRecords = getStorageData(STORAGE_KEYS.INCOME_RECORDS);
-            const expenseRecords = getStorageData(STORAGE_KEYS.EXPENSE_RECORDS);
-            const currentMonth = new Date().toLocaleString('default', { month: 'long' });
-            const currentYear = new Date().getFullYear();
-            
-            const monthlyIncome = incomeRecords.filter(record => {
-                const recordDate = new Date(record.date);
-                const recordMonth = recordDate.toLocaleString('default', { month: 'long' });
-                return recordMonth === currentMonth && recordDate.getFullYear() === currentYear;
+            let result = 'Pending Tasks by Category:\n\n';
+            Object.keys(tasksByCategory).forEach(category => {
+                result += `${category}: ${tasksByCategory[category]}\n`;
             });
             
-            const monthlyExpenses = expenseRecords.filter(record => {
-                const recordDate = new Date(record.date);
-                const recordMonth = recordDate.toLocaleString('default', { month: 'long' });
-                return recordMonth === currentMonth && recordDate.getFullYear() === currentYear;
-            });
-            
-            const totalIncome = monthlyIncome.reduce((sum, record) => sum + record.amount, 0);
-            const totalExpenses = monthlyExpenses.reduce((sum, record) => sum + record.amount, 0);
-            
-            return {
-                type: 'chart',
-                chartType: 'bar',
-                title: `Sales vs Expenses for ${currentMonth} ${currentYear}`,
-                content: `Here's a comparison of sales and expenses for ${currentMonth} ${currentYear}:`,
-                data: {
-                    labels: ['Sales', 'Expenses'],
-                    datasets: [{
-                        label: 'Amount (Rs.)',
-                        data: [totalIncome, totalExpenses],
-                        backgroundColor: [
-                            'rgba(16, 185, 129, 0.6)',
-                            'rgba(239, 68, 68, 0.6)'
-                        ],
-                        borderColor: [
-                            'rgba(16, 185, 129, 1)',
-                            'rgba(239, 68, 68, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                }
-            };
+            return result;
         }
         
         function getIncomeExpenseSummary() {
@@ -2348,10 +2715,7 @@ Busiuness Management System
             const totalExpenses = monthlyExpenses.reduce((sum, record) => sum + record.amount, 0);
             const profitLoss = totalIncome - totalExpenses;
             
-            return {
-                type: 'text',
-                content: `Income and Expense Summary for ${currentMonth} ${currentYear}:\n\nTotal Income: Rs. ${totalIncome.toFixed(2)}\nTotal Expenses: Rs. ${totalExpenses.toFixed(2)}\nProfit/Loss: Rs. ${profitLoss.toFixed(2)}`
-            };
+            return `Income and Expense Summary for ${currentMonth} ${currentYear}:\n\nTotal Income: Rs. ${totalIncome.toFixed(2)}\nTotal Expenses: Rs. ${totalExpenses.toFixed(2)}\nProfit/Loss: Rs. ${profitLoss.toFixed(2)}`;
         }
         
         function getProductSales() {
@@ -2363,7 +2727,7 @@ Busiuness Management System
             
             sales.forEach(sale => {
                 sale.items.forEach(item => {
-                    const product = products.find(p => p.id === item.id);
+                    const product = products.find(p => p.id === item.productId);
                     if (product) {
                         if (!productSales[product.name]) {
                             productSales[product.name] = 0;
@@ -2378,36 +2742,29 @@ Busiuness Management System
                 .map(name => ({ name, quantity: productSales[name] }))
                 .sort((a, b) => b.quantity - a.quantity);
             
-            return {
-                type: 'table',
-                content: 'Product Sales:',
-                columns: ['Product Name', 'Quantity Sold'],
-                data: sortedProducts.slice(0, 10) // Top 10 products
-            };
+            let result = 'Product Sales:\n\n';
+            sortedProducts.slice(0, 10).forEach(product => {
+                result += `${product.name}: ${product.quantity} units\n`;
+            });
+            
+            return result;
         }
         
         function getLowStockProducts() {
             const products = getStorageData(STORAGE_KEYS.PRODUCTS);
-            const lowStockProducts = products.filter(product => (product.stock || 0) < 10);
+            const lowStockProducts = products.filter(product => product.stock < 10);
             
-            return {
-                type: 'table',
-                content: 'Low Stock Products (less than 10 units):',
-                columns: ['Product Name', 'Stock'],
-                data: lowStockProducts.map(product => ({
-                    'Product Name': product.name,
-                    'Stock': product.stock || 0
-                }))
-            };
+            let result = 'Low Stock Products (less than 10 units):\n\n';
+            lowStockProducts.forEach(product => {
+                result += `${product.name}: ${product.stock} units\n`;
+            });
+            
+            return result;
         }
         
         function getEmployeeCount() {
             const employees = getStorageData(STORAGE_KEYS.EMPLOYEES);
-            
-            return {
-                type: 'text',
-                content: `Total number of employees: ${employees.length}`
-            };
+            return `Total number of employees: ${employees.length}`;
         }
         
         function getTaskCount() {
@@ -2415,10 +2772,7 @@ Busiuness Management System
             const pendingTasks = tasks.filter(task => task.status === 'pending');
             const completedTasks = tasks.filter(task => task.status === 'completed');
             
-            return {
-                type: 'text',
-                content: `Task Summary:\n\nTotal Tasks: ${tasks.length}\nPending Tasks: ${pendingTasks.length}\nCompleted Tasks: ${completedTasks.length}`
-            };
+            return `Task Summary:\n\nTotal Tasks: ${tasks.length}\nPending Tasks: ${pendingTasks.length}\nCompleted Tasks: ${completedTasks.length}`;
         }
         
         // Initialize the application
@@ -2429,9 +2783,14 @@ Busiuness Management System
             document.getElementById('join-date').value = today;
             document.getElementById('income-date').value = today;
             document.getElementById('expense-date').value = today;
-            document.getElementById('start-date').value = today;
-            document.getElementById('end-date').value = today;
             document.getElementById('expiry-date').value = today;
+            
+            // Initialize storage if empty
+            Object.values(STORAGE_KEYS).forEach(key => {
+                if (!localStorage.getItem(key)) {
+                    localStorage.setItem(key, JSON.stringify([]));
+                }
+            });
         });
     </script>
 </body>
